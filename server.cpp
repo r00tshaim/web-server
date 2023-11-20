@@ -4,8 +4,21 @@
 #include <unistd.h>
 #include <iostream>
 #include <sstream>
+#include <fstream>
 
 using namespace std;
+
+std::string get_file_contents(const std::string& path) {
+    std::ifstream file_stream(path.c_str());
+
+    if (!file_stream) {
+        return "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\n\r\nNot Found";
+    }
+
+    std::string contents((std::istreambuf_iterator<char>(file_stream)), std::istreambuf_iterator<char>());
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Length: " + std::to_string(contents.size()) + "\r\n\r\n" + contents;
+    return response;
+}
 
 int main() {
     int server_fd, new_socket;
@@ -56,7 +69,11 @@ int main() {
     // parsing "GET / HTTP/1.1"
     request_stream >> method >> path >> version;
 
-    std::string http_response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nRequested path: " + path;
+    if (path == "/") {
+        path = "/index.html";
+    }
+
+    std::string http_response = get_file_contents("www" + path);
     send(new_socket, http_response.c_str(), http_response.size(), 0);
 
     close(new_socket);
