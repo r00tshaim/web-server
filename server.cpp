@@ -5,8 +5,7 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
-
-using namespace std;
+#include <thread>
 
 std::string get_file_contents(const std::string& path) {
     std::ifstream file_stream(path.c_str());
@@ -20,12 +19,35 @@ std::string get_file_contents(const std::string& path) {
     return response;
 }
 
+void handle_client(int client_sock) {
+    char buffer[1024] = {0};	
+    read(client_sock, buffer, 1024);
+    std::string request(buffer);
+    std::istringstream request_stream(request);
+    std::string method;
+    std::string path;
+    std::string version;
+    // parsing "GET / HTTP/1.1"
+    request_stream >> method >> path >> version;
+
+    std::cout << "Path: " << path << std::endl;
+    std::cout << "Thread Id: " << std::this_thread::get_id() << std::endl;
+
+    if (path == "/") {
+        path = "/index.html";
+    }
+
+    std::string http_response = get_file_contents("www" + path);
+    send(client_sock, http_response.c_str(), http_response.size(), 0);
+    close(client_sock);
+}
+
 int main() {
     int server_fd, new_socket;
     struct sockaddr_in address;
     int opt = 1;
     int addrlen = sizeof(address);
-    char buffer[1024] = {0};
+    //char buffer[1024] = {0};
     // const char *http_response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello world!";
 
     // Creating socket file descriptor
@@ -52,31 +74,18 @@ int main() {
         perror("listen");
         exit(EXIT_FAILURE);
     } else {
-	cout << "Listening on: " << ntohs(address.sin_port) << endl;
+	std::cout << "Listening on: " << ntohs(address.sin_port) << std::endl;
     }
 
-    if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
-        perror("accept");
-        exit(EXIT_FAILURE);
+    while (true) {
+	if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
+        	perror("accept");
+        	exit(EXIT_FAILURE);
+    	}
+	std::thread client_thread(handle_client, new_socket);
+        client_thread.detach();
     }
 
-    read(new_socket, buffer, 1024);
-    std::string request(buffer);
-    std::istringstream request_stream(request);
-    std::string method;
-    std::string path;
-    std::string version;
-    // parsing "GET / HTTP/1.1"
-    request_stream >> method >> path >> version;
-
-    if (path == "/") {
-        path = "/index.html";
-    }
-
-    std::string http_response = get_file_contents("www" + path);
-    send(new_socket, http_response.c_str(), http_response.size(), 0);
-
-    close(new_socket);
 
     return 0;
 }
