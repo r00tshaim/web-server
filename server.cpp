@@ -6,12 +6,15 @@
 #include <sstream>
 #include <fstream>
 #include <thread>
+#include <set>
+
+std::set<std::string> whitelist = {"/index.html", "/about.html"};
 
 std::string get_file_contents(const std::string& path) {
     std::ifstream file_stream(path.c_str());
 
     if (!file_stream) {
-        return "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\n\r\nNot Found";
+        return "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\n\r\nNot Found\n";
     }
 
     std::string contents((std::istreambuf_iterator<char>(file_stream)), std::istreambuf_iterator<char>());
@@ -37,8 +40,16 @@ void handle_client(int client_sock) {
         path = "/index.html";
     }
 
-    std::string http_response = get_file_contents("www" + path);
-    send(client_sock, http_response.c_str(), http_response.size(), 0);
+    sleep(20);
+
+    if (whitelist.find(path) == whitelist.end()) {
+	std::string http_response = "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\n\r\nNot Found\n";
+	send(client_sock, http_response.c_str(), http_response.size(), 0);
+    } else {
+	std::string http_response = get_file_contents("www" + path);
+        send(client_sock, http_response.c_str(), http_response.size(), 0);
+    }
+
     close(client_sock);
 }
 
@@ -85,7 +96,6 @@ int main() {
 	std::thread client_thread(handle_client, new_socket);
         client_thread.detach();
     }
-
 
     return 0;
 }
